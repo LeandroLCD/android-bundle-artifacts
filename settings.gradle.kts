@@ -1,5 +1,8 @@
 pluginManagement {
     repositories {
+        // Primero de todo: el módulo `:sample` consume el plugin publicado localmente
+        // (ver `sampleSync`). Si esto no va primero, gana el tag de JitPack.
+        mavenLocal()
         google {
             content {
                 includeGroupByRegex("com\\.android.*")
@@ -30,3 +33,11 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "android-bundle-artifacts"
+
+// El módulo `:sample` consume el plugin desde mavenLocal (un plugin producido por
+// `java-gradle-plugin` no se puede aplicar desde su propio build), así que necesita que el
+// plugin esté publicado antes. En CI eso no pasa, y el sample tampoco aporta a los tests del
+// plugin: por eso se puede excluir con `-PskipSample=true` (es lo que hace el pipeline).
+if (!providers.gradleProperty("skipSample").getOrElse("false").toBoolean()) {
+    include(":sample")
+}
