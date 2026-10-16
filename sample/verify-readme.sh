@@ -46,6 +46,10 @@ check "mapping.txt junto al .aab" \
 check "native-debug-symbols-release.zip" \
   "$(has_file $OUT/release/native-debug-symbols-release.zip; echo $?)"
 
+# OJO: los casos de gradle properties usan `qaDevice` a propósito. En `release` el sample
+# activa el master switch del DSL Kotlin, y por precedencia documentada el master switch le
+# gana a cualquier property — probarlas ahí no mide la property, mide el DSL.
+
 echo "▸ 2. Default: debug queda excluido"
 registered debug && r=1 || r=0
 check "debugBundleArtifacts NO registrado" "$r" "apareció en el plan de build"
@@ -54,15 +58,15 @@ echo "▸ 3. Un build type propio y debuggable sí entra"
 check "qaDevice genera mapping.txt" \
   "$(has_file $OUT/qaDevice/mapping.txt; echo $?)" "$OUT/qaDevice/mapping.txt"
 
-echo "▸ 4. bundleArtifacts.enabled=false"
-e=$($GRADLE -q :sample:bundleRelease --dry-run -PbundleArtifacts.enabled=false 2>/dev/null | grep -c releaseBundleArtifacts)
+echo "▸ 4. bundleArtifacts.enabled=false (en qaDevice, sin DSL)"
+e=$($GRADLE -q :sample:bundleQaDevice --dry-run -PbundleArtifacts.enabled=false 2>/dev/null | grep -c qaDeviceBundleArtifacts)
 [ "$e" -eq 0 ]
-check "releaseBundleArtifacts NO registrado" "$?" "apareció con enabled=false"
+check "qaDeviceBundleArtifacts NO registrado" "$?" "apareció con enabled=false"
 
-echo "▸ 5. bundleArtifacts.excludeVariants=release"
-e=$($GRADLE -q :sample:bundleRelease --dry-run -PbundleArtifacts.excludeVariants=release 2>/dev/null | grep -c releaseBundleArtifacts)
+echo "▸ 5. bundleArtifacts.excludeVariants=qaDevice"
+e=$($GRADLE -q :sample:bundleQaDevice --dry-run -PbundleArtifacts.excludeVariants=qaDevice 2>/dev/null | grep -c qaDeviceBundleArtifacts)
 [ "$e" -eq 0 ]
-check "release excluido por property" "$?" "el override por property no se aplicó"
+check "qaDevice excluido por property" "$?" "el override por property no se aplicó"
 
 echo "▸ 6. bundleArtifacts.includeVariants=qaDevice (allow-list)"
 i=$($GRADLE -q :sample:bundleQaDevice --dry-run -PbundleArtifacts.includeVariants=qaDevice 2>/dev/null | grep -c qaDeviceBundleArtifacts)
@@ -70,9 +74,9 @@ i=$($GRADLE -q :sample:bundleQaDevice --dry-run -PbundleArtifacts.includeVariant
 check "qaDevice sí aparece con la allow-list" "$?" "la allow-list no lo incluyó"
 
 echo "▸ 7. bundleArtifacts.mapping=never"
-clean_outputs release
-run :sample:bundleRelease -PbundleArtifacts.mapping=never
-[ ! -f $OUT/release/mapping.txt ]
+clean_outputs qaDevice
+run :sample:bundleQaDevice -PbundleArtifacts.mapping=never
+[ ! -f $OUT/qaDevice/mapping.txt ]
 check "no copia mapping.txt" "$?" "el mapping quedó del build anterior o se generó"
 
 echo "▸ 8. bundleArtifacts.mapping=always (debug no ofusca)"
@@ -82,9 +86,9 @@ run :sample:bundleDebug -PbundleArtifacts.mapping=always
 check "no inventa un mapping inexistente" "$?" "apareció un mapping.txt en debug"
 
 echo "▸ 9. bundleArtifacts.symbols=never"
-clean_outputs release
-run :sample:bundleRelease -PbundleArtifacts.symbols=never
-[ ! -f $OUT/release/native-debug-symbols-release.zip ]
+clean_outputs qaDevice
+run :sample:bundleQaDevice -PbundleArtifacts.symbols=never
+[ ! -f $OUT/qaDevice/native-debug-symbols-qaDevice.zip ]
 check "no copia el zip de símbolos" "$?" "el zip quedó del build anterior o se generó"
 
 echo "▸ 10. bundleArtifacts.symbols=always incluye las excluidas"
@@ -94,30 +98,36 @@ check "debug recibe native-debug-symbols-debug.zip" \
   "$(has_file $OUT/debug/native-debug-symbols-debug.zip; echo $?)"
 
 echo "▸ 11. bundleArtifacts.locale=en"
-run :sample:bundleRelease -PbundleArtifacts.locale=en
+run :sample:bundleQaDevice -PbundleArtifacts.locale=en
 grep -q "Bundle ready" /tmp/sample-gradle.log
 check "bloque en inglés" "$?" "no apareció 'Bundle ready' en la salida"
 
 echo "▸ 12. BUNDLE_ARTIFACTS_LOCALE=en (variable de entorno)"
-BUNDLE_ARTIFACTS_LOCALE=en run :sample:bundleRelease
+BUNDLE_ARTIFACTS_LOCALE=en run :sample:bundleQaDevice
 grep -q "Bundle ready" /tmp/sample-gradle.log
 check "bloque en inglés por env var" "$?" "la env var no tuvo efecto"
 
 echo "▸ 13. bundleArtifacts.clean=true borra lo de corridas anteriores"
-clean_outputs release
-run :sample:bundleRelease
+clean_outputs qaDevice
+run :sample:bundleQaDevice
 check "primer build deja mapping.txt" \
-  "$(has_file $OUT/release/mapping.txt; echo $?)"
-run :sample:bundleRelease -PbundleArtifacts.mapping=never
-[ ! -f $OUT/release/mapping.txt ]
+  "$(has_file $OUT/qaDevice/mapping.txt; echo $?)"
+run :sample:bundleQaDevice -PbundleArtifacts.mapping=never
+[ ! -f $OUT/qaDevice/mapping.txt ]
 check "mapping=never borra el mapping viejo" "$?" "el mapping de la corrida anterior quedó"
 
 echo "▸ 14. bundleArtifacts.clean=false deja los archivos previos"
-clean_outputs release
-run :sample:bundleRelease
-run :sample:bundleRelease -PbundleArtifacts.mapping=never -PbundleArtifacts.clean=false
+clean_outputs qaDevice
+run :sample:bundleQaDevice
+run :sample:bundleQaDevice -PbundleArtifacts.mapping=never -PbundleArtifacts.clean=false
 check "el mapping viejo sobrevive con clean=false" \
-  "$(has_file $OUT/release/mapping.txt; echo $?)"
+  "$(has_file $OUT/qaDevice/mapping.txt; echo $?)"
+
+echo "▸ 15. Precedencia: el master switch del DSL gana a las properties"
+clean_outputs release
+run :sample:bundleRelease -PbundleArtifacts.enabled=false
+check "release igual genera (DSL master switch ON gana a enabled=false)" \
+  "$(has_file $OUT/release/mapping.txt; echo $?)" "$OUT/release/mapping.txt"
 
 echo
 printf 'resultado: %d PASS / %d FAIL\n' "$PASS" "$FAIL"

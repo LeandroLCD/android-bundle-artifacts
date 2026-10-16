@@ -17,8 +17,19 @@ nativo, y un `MainActivity` para que R8 tenga algo que ofuscar.
 ## Correrla
 
 ```bash
-./gradlew :sample:bundleRelease          # desde la raíz del repo
+./gradlew -PskipSample=true sampleBundle          # sincroniza el plugin y compila
+./gradlew -PskipSample=true sampleBundle -Pargs=:sample:bundleQaDevice
 ```
+
+El `-PskipSample=true` del comando de afuera es obligatorio mientras la versión que pide el
+sample no esté publicada en `mavenLocal()`: sin él, la configuración de `:sample` falla antes de
+que corra ninguna tarea.
+
+Cualquier tarea `bundle*` del módulo depende de `sampleSync` (ver "El loop de desarrollo"), así
+que `./gradlew :sample:bundleRelease` también publica el plugin antes de compilar. La diferencia
+es sutil pero importa: en una invocación sola, el jar que ya estaba resuelto en configuración es
+el que corre, y el recién publicado recién se ve en la **siguiente** invocación. Para probar
+cambios del plugin, usá `sampleBundle`, que encadena las dos.
 
 Los artefactos quedan en `sample/build/outputs/bundle/release/`.
 
@@ -38,13 +49,13 @@ que produce su propio build (rechaza las script classpath dependencies del mismo
 el sample consume el plugin publicado en `mavenLocal()`, y eso obliga a dos pasos:
 
 ```bash
-./gradlew sampleSync                    # publica + purga el jar cacheado
-./gradlew :sample:bundleRelease         # ahora sí corre contra el código recién publicado
+./gradlew -PskipSample=true sampleSync  # publica + purga el jar cacheado
 ```
 
-Son dos invocaciones porque la classpath del script de `:sample` se resuelve en la fase de
-configuración, antes de que corra ninguna tarea: publicar y consuming en el mismo comando usaría
-el jar viejo.
+Ojo con el detalle que hace que esto no sea trivial: la classpath del script de `:sample` se
+resuelve en la fase de configuración, **antes** de que corra ninguna tarea. Publicar en el mismo
+comando que consume no sirve, porque el jar ya está resuelto; y por eso `sampleBundle` lanza dos
+procesos de Gradle, no una tarea con dos pasos.
 
 **Regla del sample:** acá no se referencian clases del plugin (ni `import …BundleArtifactsExtension`,
 ni `import …bundleArtifacts`). Si el build script usara una API que todavía no está publicada, el

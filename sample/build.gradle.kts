@@ -1,3 +1,5 @@
+import com.leandrolcd.bundleartifacts.bundleArtifacts
+
 plugins {
     alias(libs.plugins.android.application)
     // El plugin bajo prueba se consume desde un repositorio, no desde este build: un plugin
@@ -40,6 +42,11 @@ android {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
+            bundleArtifacts {
+                automaticGeneracionFiles.set(true)   // master switch
+                //automaticGeneracionMapping.set(true)
+                //automaticGeneracionNativeDebugSymbols.set(true)
+            }
         }
 
         // Build type propio, debuggable pero distribuible: el README dice que se incluye
@@ -71,4 +78,12 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
+}
+
+// ---------------------------------------------------------------------------
+// Prebuild: antes de cualquier bundle, publicar el plugin y purgar su copia cacheada,
+// así el módulo siempre corre contra la última versión local.
+// ---------------------------------------------------------------------------
+tasks.matching { it.name.startsWith("bundle") }.configureEach {
+    dependsOn(rootProject.tasks.named("sampleSync"))
 }
