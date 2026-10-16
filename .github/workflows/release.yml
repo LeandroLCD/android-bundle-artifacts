@@ -377,27 +377,36 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
-      - name: 🔎 Locate generated JAR
-        id: find-jar
+      - name: 📦 Stage release artifacts
+        id: stage
         run: |
+          set -euo pipefail
           VERSION="${{ needs.check-tag.outputs.version }}"
-          JAR_PATH="build/libs/android-bundle-artifacts-${VERSION}.jar"
-          if [ ! -f "$JAR_PATH" ]; then
-            echo "❌ No se encontró $JAR_PATH"
-            ls -la build/libs/ || true
-            exit 1
-          fi
-          echo "jar_path=${JAR_PATH}" >> $GITHUB_OUTPUT
-          echo "✅ JAR encontrado: ${JAR_PATH}"
 
-      - name: 📦 Upload JAR + POM as workflow artifact
+          rm -rf release-out
+          mkdir -p release-out
+
+          # Ojo: los POM que genera Gradle se llaman `pom-default.xml`, no `*.pom`.
+          # Un glob `*.pom` no matchea nada y upload-artifact igual sube el artifact
+          # incompleto, porque solo falla si NO matchea ningún patrón en total.
+          cp "build/libs/android-bundle-artifacts-${VERSION}.jar" release-out/
+          cp build/publications/pluginMaven/pom-default.xml \
+            release-out/pluginMaven-pom.xml
+          cp build/publications/androidBundleArtifactsPluginMarkerMaven/pom-default.xml \
+            release-out/plugin-marker-pom.xml
+
+          echo "📂 Contenido de release-out:"
+          ls -la release-out
+
+          # Subimos la carpeta completa para que dentro del artifact los archivos queden
+          # en la raíz, y no anidados bajo build/.
+          echo "staged=release-out" >> "$GITHUB_OUTPUT"
+
+      - name: 📦 Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
           name: plugin-release
-          path: |
-            build/libs/*.jar
-            build/publications/pluginMaven/*.pom
-            build/publications/androidBundleArtifactsPluginMarkerMaven/*.pom
+          path: ${{ steps.stage.outputs.staged }}
           retention-days: 7
           if-no-files-found: error
 
@@ -429,6 +438,21 @@ jobs:
         with:
           name: plugin-release
           path: ./release-artifacts
+
+      - name: 🔎 Verify downloaded artifacts
+        id: verify
+        run: |
+          set -euo pipefail
+          echo "📂 Contenido descargado:"
+          find ./release-artifacts -type f
+
+          JAR=$(find ./release-artifacts -type f -name '*.jar' | head -1)
+          if [ -z "$JAR" ]; then
+            echo "❌ No se descargó ningún JAR. Revisar el paso de upload."
+            exit 1
+          fi
+          echo "jar=${JAR}" >> "$GITHUB_OUTPUT"
+          echo "✅ JAR listo para adjuntar: ${JAR}"
 
       - name: 🏷️ Create GitHub Release & Tag
         id: gh-release
@@ -470,7 +494,7 @@ jobs:
 
             ---
             📅 Generado el: ${{ github.event.pull_request.merged_at }}
-          files: ./release-artifacts/*.jar
+          files: ${{ steps.verify.outputs.jar }}
           make_latest: true
           fail_on_unmatched_files: true
         env:
