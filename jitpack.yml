@@ -1,3 +1,9 @@
 jdk: 17
-# Los tests de TestKit corren AGP de verdad y se comen el timeout de JitPack.
-install: ./gradlew --no-daemon build -x test -x functionalTest
+
+# `build` a secas no le sirve a JitPack: compila, pero no deja ningún artefacto Maven
+# que JitPack pueda publicar (termina en "No build artifacts found"). Hay que publicar
+# a maven local, que es donde JitPack busca.
+#
+# Los tests no se corren acá a propósito: JitPack tiene timeout de build y la suite de
+# TestKit levanta un proyecto Android real con AGP y R8.
+install: ./gradlew --no-daemon publishToMavenLocal
