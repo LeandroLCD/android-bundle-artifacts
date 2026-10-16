@@ -2,3 +2,6 @@
 .gradle
 .kotlin
 /local.properties
+# Salidas que a veces deja el asistente "Generate Signed Bundle" de Android Studio
+/qaDevice
+/qaRelease
