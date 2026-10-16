@@ -127,6 +127,8 @@ jobs:
 
     permissions:
       contents: read
+      checks: write
+      pull-requests: write
 
     outputs:
       result: ${{ steps.run-tests.outcome }}
