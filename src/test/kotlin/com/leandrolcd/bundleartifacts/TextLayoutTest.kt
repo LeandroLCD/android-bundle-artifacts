@@ -32,7 +32,7 @@ class TextLayoutTest {
 
     @Test
     fun `centerToWidth produces exactly the requested width`() {
-        val title = "📦  Bundle listo — release  (versionCode 48, 1.6.0)"
+        val title = "📦  Bundle listo — release  (versionCode 12, 2.1.0)"
         val centered = TextLayout.centerToWidth(title, 68)
 
         assertEquals(68, TextLayout.displayWidth(centered))
@@ -64,6 +64,6 @@ class TextLayoutTest {
     }
 
     private companion object {
-        const val TITLE = "Bundle listo — control-max  (versionCode 48, 1.6.0)"
+        const val TITLE = "Bundle listo — qa-device  (versionCode 12, 2.1.0)"
     }
 }

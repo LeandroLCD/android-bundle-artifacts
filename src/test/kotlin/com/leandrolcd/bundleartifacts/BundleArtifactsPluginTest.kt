@@ -32,13 +32,13 @@ class BundleArtifactsPluginTest {
     @Test
     fun `the bundle artifacts task name is derived from the variant name`() {
         assertEquals("releaseBundleArtifacts", taskName("release"))
-        assertEquals("control-maxBundleArtifacts", taskName("control-max"))
+        assertEquals("qa-deviceBundleArtifacts", taskName("qa-device"))
     }
 
     @Test
     fun `the bundle task name keeps the build type casing`() {
         assertEquals("bundleRelease", bundleTaskName("release"))
-        assertEquals("bundleControl-max", bundleTaskName("control-max"))
+        assertEquals("bundleQa-device", bundleTaskName("qa-device"))
     }
 
     private fun taskName(variant: String) = "${variant}BundleArtifacts"

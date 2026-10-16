@@ -8,7 +8,7 @@ Sin configuración. Un renglón en el `plugins {}` y listo.
 
 ```
 ╔════════════════════════════════════════════════════════════════════╗
-║        📦  Bundle listo — release  (versionCode 48, 1.6.0)         ║
+║        📦  Bundle listo — release  (versionCode 12, 2.1.0)         ║
 ╚════════════════════════════════════════════════════════════════════╝
    ▸ 📂 Ver archivos:               file:///…/app/build/outputs/bundle/release
    ▸ 🗺 Ver mapping:                file:///…/release/mapping.txt
@@ -58,7 +58,8 @@ Las variants cuyo **build type se llama `debug`** quedan fuera: no es un build d
 distribución y ensuciaría la consola en cada `assembleDebug`.
 
 Ojo con un detalle: la exclusión es por *nombre de build type*, no por `debuggable`. Un
-build type tipo `control-max` es debuggable pero sí se distribuye, así que se incluye.
+build type propio tipo `qa-device` puede ser debuggable y aun así distribuirse, así que
+se incluye.
 
 ## Configuración opcional
 

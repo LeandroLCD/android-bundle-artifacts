@@ -59,8 +59,8 @@ fun decide(
         }
 
         // La exclusión se decide por NOMBRE de build type, no por `debuggable`:
-        // `control-max` es debuggable pero sí se distribuye, y `debug` es debuggable
-        // pero no se sube a Play.
+        // Un build type propio puede ser debuggable y aun así distribuirse; `debug` es
+        // debuggable pero nunca se sube a Play.
         val isExcluded = variant in excluded || buildType in excluded
 
         val generateMapping = when (mappingMode) {
