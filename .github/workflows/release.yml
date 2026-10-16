@@ -1,14 +1,14 @@
-name: 🚀 Release Pipeline — PR to main
+name: 🚀 Release Pipeline — PR to master
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRIGGER
-# Corre en todos los eventos de PR hacia main.
+# Corre en todos los eventos de PR hacia master.
 # Los pasos de release solo se ejecutan cuando el PR es mergeado.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   pull_request:
     branches:
-      - main
+      - master
     types: [opened, synchronize, reopened, closed]
 
 # Cancela runs previos en el mismo PR si llega un nuevo push.
