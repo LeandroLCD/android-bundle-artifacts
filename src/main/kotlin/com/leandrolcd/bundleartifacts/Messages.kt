@@ -11,7 +11,8 @@ data class ConsoleMessages(
     val mappingMissing: String,
     val symbolsMissing: String,
     val aabMissing: String,
-    val noNativeLibs: String
+    val noNativeLibs: String,
+    val cleanFailed: String
 )
 
 /**
@@ -36,7 +37,8 @@ object Messages {
         symbolsMissing = "no se generaron native debug symbols: no se encontraron librerías " +
             "nativas (.so) para %s.",
         aabMissing = "No se encontró el AAB de %s: se omite el bloque de enlaces.",
-        noNativeLibs = "no hay librerías nativas (.so) en %s."
+        noNativeLibs = "no hay librerías nativas (.so) en %s.",
+        cleanFailed = "no se pudo borrar el %s de una corrida anterior."
     )
 
     private val EN = ConsoleMessages(
@@ -53,6 +55,7 @@ object Messages {
         symbolsMissing = "native debug symbols were not generated: no native libraries " +
             "(.so) found for %s.",
         aabMissing = "No AAB found for %s: skipping the links block.",
-        noNativeLibs = "there are no native libraries (.so) in %s."
+        noNativeLibs = "there are no native libraries (.so) in %s.",
+        cleanFailed = "could not delete the %s left by a previous run."
     )
 }
