@@ -1,0 +1,3 @@
+jdk: 17
+# Los tests de TestKit corren AGP de verdad y se comen el timeout de JitPack.
+install: ./gradlew --no-daemon build -x test -x functionalTest
