@@ -45,15 +45,25 @@ android {
             bundleArtifacts {
                 automaticGeneracionFiles.set(true)   // master switch
                 //automaticGeneracionMapping.set(true)
-                //automaticGeneracionNativeDebugSymbols.set(true)
+                automaticGeneracionNativeDebugSymbols.set(true)
             }
         }
 
-        // Build type propio, debuggable pero distribuible: el README dice que se incluye
-        // igual, así que sirve para verificar esa regla.
+        // Build type propio, debuggable: el plugin lo saltea aunque esté ofuscado, porque una
+        // build de depuración no es la que se distribuye. Con `symbols=always` se lo puede forzar.
         create("qaDevice") {
             initWith(getByName("release"))
             isDebuggable = true
+            matchingFallbacks += listOf("release")
+        }
+
+        // Variante de distribución sin el master switch del DSL: es la que mide de verdad el
+        // efecto de las gradle properties.
+        create("qaRelease") {
+            initWith(getByName("release"))
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             matchingFallbacks += listOf("release")
         }
     }

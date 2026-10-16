@@ -53,16 +53,22 @@ Para cada variant que se distribuye:
 
 | Artefacto | Condición | Por qué |
 |---|---|---|
-| `mapping.txt` | el build type tiene `isMinifyEnabled = true` **o** `optimization { enable = true }` | AGP no genera mapping sin ofuscación, y Play Console solo lo pide para builds ofuscados |
-| `native-debug-symbols-<variant>.zip` | la variant tiene librerías `.so` | Play Console lo pide para cualquier build que distribuya código nativo |
+| `mapping.txt` | el build type ofusca (`isMinifyEnabled = true` u `optimization { enable = true }`) y no es debuggable | AGP no genera mapping sin ofuscación, y Play Console solo lo pide para builds ofuscados |
+| `native-debug-symbols-<variant>.zip` | la variant tiene librerías `.so` y no es debuggable | Play Console lo pide para cualquier build que distribuya código nativo |
 | Bloque de enlaces | siempre que exista el `.aab` | es la notificación de "bundle listo" |
 
-Las variants cuyo **build type se llama `debug`** quedan fuera: no es un build de
-distribución y ensuciaría la consola en cada `assembleDebug`.
+Quedan fuera dos cosas:
 
-Ojo con un detalle: la exclusión es por *nombre de build type*, no por `debuggable`. Un
-build type propio tipo `qa-device` puede ser debuggable y aun así distribuirse, así que
-se incluye.
+- Las variants cuyo **build type se llama `debug`**: no es un build de distribución y
+  ensuciaría la consola en cada `assembleDebug`.
+- Las variants cuyo build type tiene `isDebuggable = true`, se llame como se llame. Una build
+  de depuración se firma distinto, apunta a otro backend y, si ofusca, produce un `mapping.txt`
+  que no corresponde al release: subirla a Play es un error. own build type tipo `qaDevice`
+  debuggable tampoco entra, aunque esté ofuscado.
+
+Si una variante debuggable sí se quiere publicar (un `qa-device` interno, por ejemplo),
+`bundleArtifacts.symbols=always` / `mapping=always` la fuerzan: el modo `always` aplica a
+variantes excluidas.
 
 ## Configuración opcional
 
@@ -145,6 +151,10 @@ ayuda: el archivo no existe.
 
 **Apareció el aviso "mapping.txt was not generated".**
 Pasa cuando pediste mapping para una variant no ofuscada. Es informativo.
+
+**¿Cómo hago que una variante debuggable genere los archivos?**
+`bundleArtifacts.symbols=always` (o `mapping=always`). Los modos `always` son la excepción
+explícita: alcanzan también a las variantes excluidas y a las debuggables.
 
 **Apareció "no native libraries (.so)".**
 Solo a nivel `info`. Significa que la app no empaqueta código nativo: no hay nada que
