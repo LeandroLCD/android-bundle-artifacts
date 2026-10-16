@@ -23,6 +23,14 @@ class PluginConfigTest {
         assertEquals(setOf("debug"), config.exclude)
         assertEquals(Mode.AUTO, config.mappingMode)
         assertEquals(Mode.AUTO, config.symbolsMode)
+        assertTrue(config.clean, "clean debería venir en true")
+    }
+
+    @Test
+    fun `clean is parsed strictly and defaults to true`() {
+        assertEquals(false, config(mapOf("bundleArtifacts.clean" to "false")).clean)
+        assertEquals(true, config(mapOf("bundleArtifacts.clean" to "TRUE")).clean)
+        assertEquals(true, config(mapOf("bundleArtifacts.clean" to "banana")).clean)
     }
 
     @Test

@@ -4,17 +4,13 @@ plugins {
     `java-gradle-plugin`
     `maven-publish`
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.android.application) apply false
 }
 
 group = "com.github.LeandroLCD"
 
-// La versión vive en `gradle.properties` (clave `version`) y es la fuente de verdad del
-// release pipeline: de ahí lee el tag que tiene que crear.
-// JitPack pisa esta propiedad con `-Pversion=<tag>`, así que la precedencia es JitPack > local.
 version = providers.gradleProperty("version").get()
 
-// Sin `jvmToolchain`: el auto-provisioning silencioso del toolchain está deprecado y
-// Gradle 10 lo va a rechazar. El target se fija explícitamente.
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
@@ -29,11 +25,6 @@ kotlin {
 
 dependencies {
     compileOnly(libs.android.gradle.plugin)
-
-    // AGP es compileOnly en el plugin, pero hace falta en el classpath de tests para poder
-    // cargar las clases que mencionan tipos del Variant API.
-    testImplementation(libs.android.gradle.plugin)
-
     testImplementation(gradleTestKit())
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -103,6 +94,69 @@ val functionalTest = tasks.register<Test>("functionalTest") {
     useJUnitPlatform { includeTags("functional") }
     shouldRunAfter(tasks.named("test"))
     maxParallelForks = 1
+}
+
+/**
+ * Sincroniza el plugin que consume el módulo `:sample`.
+ *
+ * El sample es un submódulo de este mismo build, y un plugin producido por `java-gradle-plugin`
+ * no se puede aplicar desde acá: Gradle rechaza las script classpath dependencies del mismo
+ * build. Así que el sample lo toma de `mavenLocal()`, y eso obliga a dos pasos:
+ *
+ *   1. publicar el plugin;
+ *   2. purgar el jar cacheado, porque Gradle no vuelve a leer `~/.m2` mientras el módulo no
+ *      cambie de versión.
+ *
+ * Por eso son dos invocaciones: la classpath del script de `:sample` se resuelve en la fase de
+ * configuración, antes de que corra ninguna tarea. Publicar en el mismo comando que consume no
+ * sirve de nada, porque el jar ya está resuelto.
+ */
+val sampleSync = tasks.register("sampleSync") {
+    group = "sample"
+    description = "Publica el plugin en mavenLocal y purga su copia cacheada"
+    dependsOn(tasks.named("publishToMavenLocal"))
+    doLast {
+        val cached = gradle.gradleUserHomeDir
+            .resolve("caches/modules-2/files-2.1/com.github.LeandroLCD.android-bundle-artifacts")
+        if (cached.deleteRecursively()) {
+            logger.lifecycle("sampleSync: purgado ${cached.relativeTo(gradle.gradleUserHomeDir)}")
+        }
+    }
+}
+
+/**
+ * El loop de desarrollo del sample, en un solo comando y siempre con el código recién
+ * publicado: sincroniza el plugin y después compila el bundle.
+ *
+ * Son dos procesos de Gradle, no dos tareas, porque la classpath del script de `:sample` se
+ * resuelve en la fase de configuración: publicar y consumir en el mismo proceso usaría el jar
+ * viejo. El primero publica con `-PskipSample=true` porque, si la versión del sample todavía no
+ * está en mavenLocal, configurar `:sample` fallaría y no se podría ni publicar.
+ *
+ *     ./gradlew sampleBundle
+ *     ./gradlew sampleBundle -Pargs=:sample:bundleQaDevice
+ */
+val sampleBundle = tasks.register("sampleBundle") {
+    group = "sample"
+    description = "Sincroniza el plugin y compila un bundle del módulo :sample (ver -Pargs)"
+
+    val args = providers.gradleProperty("args").getOrElse(":sample:bundleRelease")
+
+    fun runGradle(vararg command: String) {
+        val process = ProcessBuilder(*command)
+            .directory(projectDir)
+            .redirectErrorStream(true)
+            .start()
+        process.inputStream.bufferedReader().forEachLine { logger.lifecycle(it) }
+        if (process.waitFor() != 0) {
+            throw GradleException("sampleBundle falló: ${command.joinToString(" ")}")
+        }
+    }
+
+    doLast {
+        runGradle("./gradlew", "-PskipSample=true", "sampleSync")
+        runGradle("./gradlew", args)
+    }
 }
 
 tasks.jar {

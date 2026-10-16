@@ -82,7 +82,7 @@ jobs:
       - name: 🧪 Run unit tests
         id: run-tests
         run: |
-          ./gradlew test \
+          ./gradlew -PskipSample=true test \
             --no-daemon \
             --warning-mode none \
             --console=plain \
@@ -182,7 +182,7 @@ jobs:
       - name: 🧩 Run functional tests
         id: run-tests
         run: |
-          ./gradlew functionalTest \
+          ./gradlew -PskipSample=true functionalTest \
             --no-daemon \
             --warning-mode none \
             --console=plain \
@@ -360,7 +360,7 @@ jobs:
 
       - name: 🏗️ Assemble plugin & generate publications
         run: |
-          ./gradlew jar \
+          ./gradlew -PskipSample=true jar \
             generatePomFileForPluginMavenPublication \
             generatePomFileForAndroidBundleArtifactsPluginMarkerMavenPublication \
             --no-daemon \

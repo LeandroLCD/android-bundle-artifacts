@@ -62,6 +62,14 @@ abstract class BundleArtifactsTask : DefaultTask() {
     @get:Internal
     abstract val locale: Property<String>
 
+    /**
+     * Borra `mapping.txt` y `native-debug-symbols-<variant>.zip` de corridas anteriores antes
+     * de copiar. Sin esto, apagar `mapping` o `symbols` deja el archivo viejo en la carpeta
+     * y hace creer que el build actual lo generó.
+     */
+    @get:Internal
+    abstract val clean: Property<Boolean>
+
     @TaskAction
     fun generateBundleArtifacts() {
         val messages = Messages.of(locale.orNull)
@@ -81,6 +89,16 @@ abstract class BundleArtifactsTask : DefaultTask() {
 
         val links = mutableListOf<Pair<String, String>>()
         val warnings = mutableListOf<String>()
+
+        // Solo los dos archivos que el plugin genera: nunca toca el `.aab`.
+        if (clean.get()) {
+            listOf(MAPPING_FILE_NAME, "native-debug-symbols-$variant.zip").forEach { name ->
+                val stale = File(outputDir, name)
+                if (stale.isFile && !stale.delete()) {
+                    warnings += String.format(messages.cleanFailed, name)
+                }
+            }
+        }
 
         if (generateMapping.get()) {
             val source = runCatching { mappingSource.orNull?.asFile }.getOrNull()

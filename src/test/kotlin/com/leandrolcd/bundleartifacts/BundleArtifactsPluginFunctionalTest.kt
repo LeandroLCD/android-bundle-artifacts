@@ -107,6 +107,53 @@ class BundleArtifactsPluginFunctionalTest {
     }
 
     @Test
+    fun `a debuggable build type is skipped even when it is minified`() {
+        File(projectDir, "build.gradle.kts").writeText(
+            File(projectDir, "build.gradle.kts").readText()
+                .replace(
+                    "buildTypes {",
+                    """
+                    buildTypes {
+        create("qaDevice") {
+            initWith(getByName("release"))
+            isDebuggable = true
+        }"""
+                )
+        )
+
+        val result = run("bundleQaDevice")
+
+        assertFalse(
+            result.output.contains("qaDeviceBundleArtifacts"),
+            "una build type debuggable no debería registrarse, aunque esté ofuscada"
+        )
+    }
+
+    @Test
+    fun `symbols always is the escape hatch for a debuggable build type`() {
+        File(projectDir, "build.gradle.kts").writeText(
+            File(projectDir, "build.gradle.kts").readText()
+                .replace(
+                    "buildTypes {",
+                    """
+                    buildTypes {
+        create("qaDevice") {
+            initWith(getByName("release"))
+            isDebuggable = true
+        }"""
+                )
+        )
+
+        run("bundleQaDevice", "-PbundleArtifacts.symbols=always")
+
+        assertTrue(
+            File(projectDir, "build/outputs/bundle/qaDevice/native-debug-symbols-qaDevice.zip")
+                .isFile,
+            "con symbols=always la variante debuggable debería generar el zip"
+        )
+    }
+
+    @Test
     fun `a second run reuses the configuration cache`() {
         // La entrada se guarda solo si la primera corrida también lleva el flag.
         run("bundleRelease", "--configuration-cache")
@@ -132,6 +179,101 @@ class BundleArtifactsPluginFunctionalTest {
         val output = run("bundleRelease", "-PbundleArtifacts.enabled=false").output
 
         assertFalse(output.contains("releaseBundleArtifacts"))
+    }
+
+    @Test
+    fun `artifacts of a previous run are removed before copying`() {
+        // Correr con mapping=always y después con never: sin limpieza el mapping.txt
+        // de la corrida anterior queda en la carpeta y miente.
+        run("bundleRelease", "-PbundleArtifacts.mapping=always")
+        val mapping = File(projectDir, "build/outputs/bundle/release/mapping.txt")
+        assertTrue(mapping.isFile, "el fixture debería haber generado el mapping")
+
+        run("bundleRelease", "-PbundleArtifacts.mapping=never")
+
+        assertFalse(mapping.exists(), "el mapping de la corrida anterior no se limpió")
+    }
+
+    @Test
+    fun `the cleanup can be turned off from gradle properties`() {
+        run("bundleRelease")
+        val mapping = File(projectDir, "build/outputs/bundle/release/mapping.txt")
+        assertTrue(mapping.isFile)
+
+        run("bundleRelease", "-PbundleArtifacts.mapping=never", "-PbundleArtifacts.clean=false")
+
+        assertTrue(mapping.isFile, "con clean=false el mapping viejo tiene que sobrevivir")
+    }
+
+    @Test
+    fun `optimization enable counts as minify enabled`() {
+        // AGP 9.4: `optimization { enable = true }` ofusca pero deja `isMinifyEnabled`
+        // en false. Si el plugin solo mira el flag viejo, deja de copiar el mapping.
+        File(projectDir, "gradle.properties").appendText("\nandroid.r8.gradual.support=true\n")
+        File(projectDir, "build.gradle.kts").writeText(
+            File(projectDir, "build.gradle.kts").readText()
+                .replace("isMinifyEnabled = true", "optimization { enable = true }")
+        )
+
+        run("bundleRelease")
+
+        assertTrue(
+            File(projectDir, "build/outputs/bundle/release/mapping.txt").isFile,
+            "optimization { enable = true } debería generar el mapping.txt"
+        )
+    }
+
+    @Test
+    fun `the kotlin dsl is available inside every build type`() {
+        // Regresión: `android.buildTypes.configureEach { ... }` es un `Action`, no una
+        // lambda con receiver. Con `this` la extensión se registraba sobre la clase
+        // del plugin en vez de sobre el build type y el DSL del README reventaba con
+        // "Extension with name 'bundleArtifacts' does not exist".
+        File(projectDir, "build.gradle.kts").appendText(
+            """
+
+            extensions.getByName("android").let { ext ->
+                val androidExt = ext as com.android.build.api.dsl.ApplicationExtension
+                val buildType = androidExt.buildTypes.getByName("release")
+                (buildType as ExtensionAware).extensions.configure<
+                    com.leandrolcd.bundleartifacts.BundleArtifactsExtension
+                    >("bundleArtifacts") {
+                    automaticGeneracionMapping.set(false)
+                }
+            }
+            """.trimIndent()
+        )
+
+        val result = run("bundleRelease")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":releaseBundleArtifacts")?.outcome)
+        assertFalse(
+            File(projectDir, "build/outputs/bundle/release/mapping.txt").exists(),
+            "automaticGeneracionMapping=false debería apagar el mapping"
+        )
+    }
+
+    @Test
+    fun `the dsl extension function configures a build type`() {
+        File(projectDir, "build.gradle.kts").appendText(
+            """
+
+            extensions.getByName("android").let { ext ->
+                val androidExt = ext as com.android.build.api.dsl.ApplicationExtension
+                androidExt.buildTypes.getByName("release").bundleArtifacts {
+                    automaticGeneracionMapping.set(false)
+                }
+            }
+            """.trimIndent()
+        )
+
+        val result = run("bundleRelease")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":releaseBundleArtifacts")?.outcome)
+        assertFalse(
+            File(projectDir, "build/outputs/bundle/release/mapping.txt").exists(),
+            "automaticGeneracionMapping=false debería apagar el mapping"
+        )
     }
 
     @Test
@@ -177,6 +319,8 @@ class BundleArtifactsPluginFunctionalTest {
 
         projectDir.file("build.gradle.kts").writeText(
             """
+            import com.leandrolcd.bundleartifacts.bundleArtifacts
+
             plugins {
                 id("com.android.application") version "$AGP_VERSION"
                 id("com.github.LeandroLCD.android-bundle-artifacts")
