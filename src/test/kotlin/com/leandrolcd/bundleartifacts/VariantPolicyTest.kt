@@ -15,8 +15,78 @@ class VariantPolicyTest {
         include: Set<String> = emptySet(),
         exclude: Set<String> = VariantPolicy.DEFAULT_EXCLUDE,
         mapping: Mode = Mode.AUTO,
-        symbols: Mode = Mode.AUTO
-    ) = VariantPolicy.decide(variant, buildType, minify, enabled, include, exclude, mapping, symbols)
+        symbols: Mode = Mode.AUTO,
+        debuggable: Boolean = false
+    ) = VariantPolicy.decide(
+        variant, buildType, minify, enabled, include, exclude, mapping, symbols, debuggable
+    )
+
+    @Test
+    fun `a debuggable build type is skipped even if it is not named debug`() {
+        val decision = decide(
+            variant = "qaDevice",
+            buildType = "qaDevice",
+            minify = true,
+            debuggable = true
+        )
+
+        assertFalse(decision.generateMapping)
+        assertFalse(decision.generateSymbols)
+        assertFalse(decision.hasWork)
+    }
+
+    @Test
+    fun `an allow list does not resurrect a debuggable build type`() {
+        val decision = decide(
+            variant = "qaDevice",
+            buildType = "qaDevice",
+            minify = true,
+            include = setOf("qaDevice"),
+            debuggable = true
+        )
+
+        assertFalse(decision.hasWork)
+    }
+
+    @Test
+    fun `symbols ALWAYS is the escape hatch for a debuggable build type`() {
+        val decision = decide(
+            variant = "qaDevice",
+            buildType = "qaDevice",
+            minify = true,
+            symbols = Mode.ALWAYS,
+            debuggable = true
+        )
+
+        assertTrue(decision.generateSymbols)
+        assertFalse(decision.generateMapping)
+    }
+
+    @Test
+    fun `mapping ALWAYS still needs minify on a debuggable build type`() {
+        val decision = decide(
+            variant = "qaDevice",
+            buildType = "qaDevice",
+            minify = false,
+            mapping = Mode.ALWAYS,
+            debuggable = true
+        )
+
+        assertFalse(decision.generateMapping, "sin minify no hay mapping que copiar")
+    }
+
+    @Test
+    fun `a debuggable build type can still generate mapping when minified and forced`() {
+        val decision = decide(
+            variant = "qaDevice",
+            buildType = "qaDevice",
+            minify = true,
+            mapping = Mode.ALWAYS,
+            debuggable = true
+        )
+
+        assertTrue(decision.generateMapping)
+    }
 
     @Test
     fun `minified variant gets mapping and symbols`() {
@@ -45,7 +115,7 @@ class VariantPolicyTest {
     }
 
     @Test
-    fun `a custom build type is not excluded even though it is debuggable`() {
+    fun `a custom build type is included as long as it is not debuggable`() {
         val decision = decide(variant = "qa-device", buildType = "qa-device", minify = false)
 
         assertFalse(decision.generateMapping)

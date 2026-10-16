@@ -66,6 +66,7 @@ internal class AndroidProjectConfigurer(private val project: Project) {
             variantName = variantName,
             buildTypeName = buildTypeName,
             minifyEnabled = isMinifyEnabled(android, buildTypeName),
+            debuggable = isDebuggable(android, buildTypeName),
             enabled = config.enabled,
             include = config.include,
             exclude = config.exclude,
@@ -120,6 +121,10 @@ internal class AndroidProjectConfigurer(private val project: Project) {
         val buildType = android?.buildTypes?.findByName(buildTypeName) ?: return false
         return buildType.isMinifyEnabled || buildType.optimization.enable
     }
+
+    /** Si la build type es depurable (`isDebuggable`): esas variantes no se distribuyen. */
+    private fun isDebuggable(android: ApplicationExtension?, buildTypeName: String): Boolean =
+        android?.buildTypes?.findByName(buildTypeName)?.isDebuggable == true
 
     /** Tri-estado por build type -> defaultConfig -> null (deja el mando a la política). */
     private fun resolveOverrides(android: ApplicationExtension?, buildTypeName: String): Overrides {

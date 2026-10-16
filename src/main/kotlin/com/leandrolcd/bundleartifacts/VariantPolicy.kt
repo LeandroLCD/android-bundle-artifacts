@@ -44,7 +44,8 @@ fun decide(
         include: Set<String> = emptySet(),
         exclude: Set<String> = DEFAULT_EXCLUDE,
         mappingMode: Mode = Mode.AUTO,
-        symbolsMode: Mode = Mode.AUTO
+        symbolsMode: Mode = Mode.AUTO,
+        debuggable: Boolean = false
     ): VariantDecision {
         if (!enabled) return VariantDecision.NOTHING
 
@@ -58,10 +59,14 @@ fun decide(
             return VariantDecision.NOTHING
         }
 
-        // La exclusión se decide por NOMBRE de build type, no por `debuggable`:
-        // Un build type propio puede ser debuggable y aun así distribuirse; `debug` es
-        // debuggable pero nunca se sube a Play.
-        val isExcluded = variant in excluded || buildType in excluded
+        // Una build type `debuggable` nunca se distribuye: es una build de depuración con
+        // otra firma, otro backend y, si ofusca, un mapping que no corresponde al release. Por
+        // eso se saltea aunque se llame `qaDevice` y aunque esté en la allow-list. El nombre
+        // `debug` además está excluido por default, que es la regla histórica.
+        //
+        // Escape hatch: `mapping=always` / `symbols=always` (o el master switch del DSL) generan
+        // igual, para cuando la variante debuggable sí se quiere publicar.
+        val isExcluded = variant in excluded || buildType in excluded || debuggable
 
         val generateMapping = when (mappingMode) {
             Mode.NEVER -> false

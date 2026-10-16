@@ -107,6 +107,53 @@ class BundleArtifactsPluginFunctionalTest {
     }
 
     @Test
+    fun `a debuggable build type is skipped even when it is minified`() {
+        File(projectDir, "build.gradle.kts").writeText(
+            File(projectDir, "build.gradle.kts").readText()
+                .replace(
+                    "buildTypes {",
+                    """
+                    buildTypes {
+        create("qaDevice") {
+            initWith(getByName("release"))
+            isDebuggable = true
+        }"""
+                )
+        )
+
+        val result = run("bundleQaDevice")
+
+        assertFalse(
+            result.output.contains("qaDeviceBundleArtifacts"),
+            "una build type debuggable no debería registrarse, aunque esté ofuscada"
+        )
+    }
+
+    @Test
+    fun `symbols always is the escape hatch for a debuggable build type`() {
+        File(projectDir, "build.gradle.kts").writeText(
+            File(projectDir, "build.gradle.kts").readText()
+                .replace(
+                    "buildTypes {",
+                    """
+                    buildTypes {
+        create("qaDevice") {
+            initWith(getByName("release"))
+            isDebuggable = true
+        }"""
+                )
+        )
+
+        run("bundleQaDevice", "-PbundleArtifacts.symbols=always")
+
+        assertTrue(
+            File(projectDir, "build/outputs/bundle/qaDevice/native-debug-symbols-qaDevice.zip")
+                .isFile,
+            "con symbols=always la variante debuggable debería generar el zip"
+        )
+    }
+
+    @Test
     fun `a second run reuses the configuration cache`() {
         // La entrada se guarda solo si la primera corrida también lleva el flag.
         run("bundleRelease", "--configuration-cache")
