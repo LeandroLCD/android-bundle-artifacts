@@ -27,7 +27,9 @@ internal class AndroidProjectConfigurer(private val project: Project) {
             // Extensión Kotlin opcional, en defaultConfig y en cada build type.
             // `configureEach` es lazy: cubre también los build types creados con `create("…")`.
             registerBundleArtifactsExtension(android.defaultConfig)
-            android.buildTypes.configureEach { registerBundleArtifactsExtension(this) }
+            // OJO: `configureEach` es un `Action`, no una lambda con receiver. `this` dentro
+            // del bloque sería ESTA clase, no el build type: hay que usar el parámetro.
+            android.buildTypes.configureEach { registerBundleArtifactsExtension(it) }
         }
 
         androidComponents.onVariants { variant ->
@@ -63,7 +65,7 @@ internal class AndroidProjectConfigurer(private val project: Project) {
         val decision = VariantPolicy.decide(
             variantName = variantName,
             buildTypeName = buildTypeName,
-            minifyEnabled = android?.buildTypes?.findByName(buildTypeName)?.isMinifyEnabled == true,
+            minifyEnabled = isMinifyEnabled(android, buildTypeName),
             enabled = config.enabled,
             include = config.include,
             exclude = config.exclude,
@@ -95,6 +97,7 @@ internal class AndroidProjectConfigurer(private val project: Project) {
             task.generateSymbols.set(generateSymbols)
             task.masterSwitchOn.set(overrides.master == true)
             task.locale.set(config.locale)
+            task.clean.set(config.clean)
         }
 
         // `matching`/`configureEach` es lazy a propósito: cuando corre onVariants el task
@@ -103,6 +106,19 @@ internal class AndroidProjectConfigurer(private val project: Project) {
         project.tasks.matching { it.name == bundleTaskName }.configureEach { task ->
             task.finalizedBy(artifactsTask)
         }
+    }
+
+    /**
+     * Si la build type ofusca o no.
+     *
+     * AGP 9 tiene dos interruptores: el viejo `isMinifyEnabled` y el nuevo bloque
+     * `optimization { enable = true }`. Con AGP 9.4 el primero NO refleja al segundo —
+     * el build ofusca y `isMinifyEnabled` sigue en false — así que hay que mirar los dos
+     * o el plugin deja de copiar el `mapping.txt` sin avisar.
+     */
+    private fun isMinifyEnabled(android: ApplicationExtension?, buildTypeName: String): Boolean {
+        val buildType = android?.buildTypes?.findByName(buildTypeName) ?: return false
+        return buildType.isMinifyEnabled || buildType.optimization.enable
     }
 
     /** Tri-estado por build type -> defaultConfig -> null (deja el mando a la política). */
@@ -156,7 +172,9 @@ internal data class PluginConfig(
     val exclude: Set<String>,
     val mappingMode: Mode,
     val symbolsMode: Mode,
-    val locale: String
+    val locale: String,
+    /** Borra los artefactos de corridas anteriores antes de copiar. */
+    val clean: Boolean = true
 ) {
     companion object {
         fun from(
@@ -191,7 +209,8 @@ internal data class PluginConfig(
                 symbolsMode = mode("bundleArtifacts.symbols", Mode.AUTO),
                 locale = property("bundleArtifacts.locale")
                     ?: environmentVariable("BUNDLE_ARTIFACTS_LOCALE")
-                    ?: Locale.getDefault().language
+                    ?: Locale.getDefault().language,
+                clean = boolean("bundleArtifacts.clean", default = true)
             )
         }
     }
