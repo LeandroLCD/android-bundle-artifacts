@@ -156,15 +156,37 @@ consola.
 
 ## Publicar
 
-El repo se publica con JitPack. Publicar es taguear:
+La versión vive en la clave `version` de `gradle.properties`. El Release Pipeline la lee de ahí,
+valida que el tag sea nuevo y mayor al último, y crea el tag + el GitHub Release al mergear el PR.
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# 1. bumpear la versión en gradle.properties
+#    version=0.0.2
+
+# 2. PR de develop a main → el pipeline publica solo
 ```
 
-JitPack compila el tag y lo deja disponible en
-`https://jitpack.io/com/github/LeandroLCD/android-bundle-artifacts/1.0.0`.
+Flujo completo del pipeline (`.github/workflows/release.yml`):
+
+| Paso | Qué hace | Cuándo |
+|---|---|---|
+| Unit Tests | `./gradlew test` | en cada push al PR |
+| Functional Tests | `./gradlew functionalTest` (TestKit + AGP real) | en cada push al PR |
+| Check Tag | valida que `version` sea > último tag y que el tag no exista | en cada push al PR |
+| Build JAR & POM | `jar` + POM de `pluginMaven` | al mergear |
+| Create Release | crea el tag y el GitHub Release con el JAR | al mergear |
+| JitPack Build | dispara el build y muestra el log | al mergear |
+
+Detalles que importan:
+
+- El **tag es lo que dispara JitPack**. Crear el tag a mano (como se hizo con `v0.0.1`) también
+  publica, pero se saltea la validación de versión.
+- Se publica la publicación `pluginMaven`, que `java-gradle-plugin` + `maven-publish` crean
+  automáticamente. El consumo es por `plugins { id(...) version ... }`, no por `dependencies`.
+- Si JitPack falla, el log está en
+  `https://jitpack.io/com/github/LeandroLCD/android-bundle-artifacts/<version>/build.log`.
+  Un `429 Too Many Requests` de Maven Central es un rate limit de su lado: se reintenta
+  moviendo el tag a un commit nuevo o desde el botón *Rebuild* de jitpack.io.
 
 ## Licencia
 
