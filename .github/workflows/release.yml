@@ -1,14 +1,14 @@
-name: 🚀 Release Pipeline — PR to main
+name: 🚀 Release Pipeline — PR to master
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TRIGGER
-# Corre en todos los eventos de PR hacia main.
+# Corre en todos los eventos de PR hacia master.
 # Los pasos de release solo se ejecutan cuando el PR es mergeado.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   pull_request:
     branches:
-      - main
+      - master
     types: [opened, synchronize, reopened, closed]
 
 # Cancela runs previos en el mismo PR si llega un nuevo push.
@@ -127,6 +127,8 @@ jobs:
 
     permissions:
       contents: read
+      checks: write
+      pull-requests: write
 
     outputs:
       result: ${{ steps.run-tests.outcome }}
@@ -155,8 +157,24 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: 🤖 Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 🤖 Prepare Android SDK
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+
+          # El runner ya trae un SDK. Aceptamos licencias sin interacción: el paso de
+          # setup-android que había antes se colgaba preguntando (y/N) en un job sin TTY.
+          if [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
+              > /dev/null 2>&1 \
+              || echo "⚠️  No se pudo instalar todo; se sigue con el SDK preinstalado"
+          else
+            echo "⚠️  No se encontró sdkmanager en ${ANDROID_HOME}; se sigue con el SDK preinstalado"
+          fi
+
+          echo "ANDROID_HOME=${ANDROID_HOME}" >> "$GITHUB_ENV"
+          echo "sdk.dir=${ANDROID_HOME}" >> "$GITHUB_ENV"
 
       - name: 🔧 Grant execute permission to gradlew
         run: chmod +x ./gradlew

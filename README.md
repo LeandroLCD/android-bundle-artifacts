@@ -8,7 +8,7 @@ Sin configuración. Un renglón en el `plugins {}` y listo.
 
 ```
 ╔════════════════════════════════════════════════════════════════════╗
-║        📦  Bundle listo — release  (versionCode 48, 1.6.0)         ║
+║        📦  Bundle listo — release  (versionCode 12, 2.1.0)         ║
 ╚════════════════════════════════════════════════════════════════════╝
    ▸ 📂 Ver archivos:               file:///…/app/build/outputs/bundle/release
    ▸ 🗺 Ver mapping:                file:///…/release/mapping.txt
@@ -58,7 +58,8 @@ Las variants cuyo **build type se llama `debug`** quedan fuera: no es un build d
 distribución y ensuciaría la consola en cada `assembleDebug`.
 
 Ojo con un detalle: la exclusión es por *nombre de build type*, no por `debuggable`. Un
-build type tipo `control-max` es debuggable pero sí se distribuye, así que se incluye.
+build type propio tipo `qa-device` puede ser debuggable y aun así distribuirse, así que
+se incluye.
 
 ## Configuración opcional
 
@@ -156,15 +157,37 @@ consola.
 
 ## Publicar
 
-El repo se publica con JitPack. Publicar es taguear:
+La versión vive en la clave `version` de `gradle.properties`. El Release Pipeline la lee de ahí,
+valida que el tag sea nuevo y mayor al último, y crea el tag + el GitHub Release al mergear el PR.
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# 1. bumpear la versión en gradle.properties
+#    version=0.0.2
+
+# 2. PR de develop a main → el pipeline publica solo
 ```
 
-JitPack compila el tag y lo deja disponible en
-`https://jitpack.io/com/github/LeandroLCD/android-bundle-artifacts/1.0.0`.
+Flujo completo del pipeline (`.github/workflows/release.yml`):
+
+| Paso | Qué hace | Cuándo |
+|---|---|---|
+| Unit Tests | `./gradlew test` | en cada push al PR |
+| Functional Tests | `./gradlew functionalTest` (TestKit + AGP real) | en cada push al PR |
+| Check Tag | valida que `version` sea > último tag y que el tag no exista | en cada push al PR |
+| Build JAR & POM | `jar` + POM de `pluginMaven` | al mergear |
+| Create Release | crea el tag y el GitHub Release con el JAR | al mergear |
+| JitPack Build | dispara el build y muestra el log | al mergear |
+
+Detalles que importan:
+
+- El **tag es lo que dispara JitPack**. Crear el tag a mano (como se hizo con `v0.0.1`) también
+  publica, pero se saltea la validación de versión.
+- Se publica la publicación `pluginMaven`, que `java-gradle-plugin` + `maven-publish` crean
+  automáticamente. El consumo es por `plugins { id(...) version ... }`, no por `dependencies`.
+- Si JitPack falla, el log está en
+  `https://jitpack.io/com/github/LeandroLCD/android-bundle-artifacts/<version>/build.log`.
+  Un `429 Too Many Requests` de Maven Central es un rate limit de su lado: se reintenta
+  moviendo el tag a un commit nuevo o desde el botón *Rebuild* de jitpack.io.
 
 ## Licencia
 

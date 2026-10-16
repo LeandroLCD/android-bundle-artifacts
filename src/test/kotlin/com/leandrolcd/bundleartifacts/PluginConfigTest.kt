@@ -57,8 +57,8 @@ class PluginConfigTest {
     @Test
     fun `include is comma separated`() {
         assertEquals(
-            setOf("release", "control-max"),
-            config(mapOf("bundleArtifacts.includeVariants" to "release, control-max")).include
+            setOf("release", "qa-device"),
+            config(mapOf("bundleArtifacts.includeVariants" to "release, qa-device")).include
         )
     }
 

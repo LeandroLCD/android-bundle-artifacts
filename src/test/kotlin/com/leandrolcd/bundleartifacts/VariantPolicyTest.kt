@@ -45,8 +45,8 @@ class VariantPolicyTest {
     }
 
     @Test
-    fun `control-max is not excluded even though it is debuggable`() {
-        val decision = decide(variant = "control-max", buildType = "control-max", minify = false)
+    fun `a custom build type is not excluded even though it is debuggable`() {
+        val decision = decide(variant = "qa-device", buildType = "qa-device", minify = false)
 
         assertFalse(decision.generateMapping)
         assertTrue(decision.generateSymbols)
