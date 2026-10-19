@@ -38,7 +38,7 @@ Y el plugin al `build.gradle.kts` del módulo (la versión es el último tag del
 ```kotlin
 plugins {
     id("com.android.application")
-    id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.0"
+    id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.1"
 }
 ```
 
