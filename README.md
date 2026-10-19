@@ -204,7 +204,11 @@ Dos trampas de ese camino, ya resueltas acá y documentadas en `sample/README.md
   mismo build, así que `:sample` lo toma de `mavenLocal()` (que va primero en `pluginManagement`
   para ganarle al tag de JitPack), y hay que publicar antes de cada prueba.
 - El pipeline de release corre los tests con `-PskipSample=true`, porque en una máquina
-  limpia no hay nada publicado todavía y el sample no aporta a los tests del plugin.
+  limpia no hay nada publicado todavía y el sample no aporta a los tests del plugin. Lo mismo
+  hace `settings.gradle.kts` solo: descarta `:sample` si la invocación pide publicar (`publish*`,
+  que es el caso de JitPack) o si detecta `CI=true`. O sea que ningún `publish*` puede
+  terminar configurando el sample, ni aunque alguien se olvide del flag — igual `jitpack.yml`
+  lo lleva explícito, porque esa omisión sí tumbó el release de 0.1.0.
 - Como la classpath del script de `:sample` se resuelve antes de que corra ninguna tarea,
   publicar y consumir en una sola invocación no funciona: por eso `sampleBundle` lanza dos
   procesos de Gradle (sincroniza, y después compila). Cualquier `bundle*` del sample sí depende
