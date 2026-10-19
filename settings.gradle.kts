@@ -34,10 +34,33 @@ dependencyResolutionManagement {
 
 rootProject.name = "android-bundle-artifacts"
 
-// El módulo `:sample` consume el plugin desde mavenLocal (un plugin producido por
-// `java-gradle-plugin` no se puede aplicar desde su propio build), así que necesita que el
-// plugin esté publicado antes. En CI eso no pasa, y el sample tampoco aporta a los tests del
-// plugin: por eso se puede excluir con `-PskipSample=true` (es lo que hace el pipeline).
-if (!providers.gradleProperty("skipSample").getOrElse("false").toBoolean()) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Inclusión de `:sample`
+//
+// El módulo `:sample` existe solo para probar el plugin con builds Android reales (ver
+// `sample/README.md`): aplica el plugin desde `mavenLocal()` y no aporta nada a los tests.
+//
+// Por eso nunca puede quedar incluido en una publicación. La classpath del script de `:sample`
+// se resuelve en la fase de configuración —antes de que corra la tarea que publica el plugin—, así
+// que incluirlo en un `publish*` falla siempre: al configurar, `mavenLocal()` todavía está vacío.
+//
+// Se excluye entonces por cualquier motivo de estos tres (gana el primero que aplique):
+//   1. `-PskipSample=true`, explícito.
+//   2. La invocación pide publicar (`publish*`). Es el caso de JitPack.
+//   3. `CI=true`. En una máquina limpia `mavenLocal()` arranca vacío y el sample tampoco aporta.
+// ─────────────────────────────────────────────────────────────────────────────
+
+val skipSampleByProperty = providers.gradleProperty("skipSample").map { it.toBoolean() }.getOrElse(false)
+val publishRequested = gradle.startParameter.taskNames.any {
+    it.substringAfterLast(':').startsWith("publish")
+}
+val runningOnCi = System.getenv("CI")?.toBoolean() == true
+
+if (skipSampleByProperty || publishRequested || runningOnCi) {
+    logger.lifecycle(
+        "settings: `:sample` fuera del build " +
+            "(skipSample=$skipSampleByProperty, publish=$publishRequested, CI=$runningOnCi)"
+    )
+} else {
     include(":sample")
 }

@@ -6,7 +6,7 @@ agp = "9.0.1"
 junitBom = "6.1.3"
 # Versión del plugin que consume el módulo `:sample`. Tiene que coincidir con la clave
 # `version` de gradle.properties, que es la que publica el release pipeline.
-bundleArtifacts = "0.1.0"
+bundleArtifacts = "0.1.1"
 agpVersion = "9.4.0"
 junit4 = "4.13.2"
 appcompat = "1.7.1"

@@ -1,9 +1,20 @@
 jdk: 17
 
+# Ojo: esto es el JDK base de la imagen. El daemon de Gradle no usa este, sino el que fija
+# `gradle/gradle-daemon-jvm.properties` (25, vía toolchain de foojay). Ya se verificó que
+# JitPack resuelve ese toolchain sin problema, así que no hay nada que tocar acá: el plugin
+# publica bytecode 17, que corre en cualquiera de los dos.
+#
 # `build` a secas no le sirve a JitPack: compila, pero no deja ningún artefacto Maven
 # que JitPack pueda publicar (termina en "No build artifacts found"). Hay que publicar
 # a maven local, que es donde JitPack busca.
 #
+# El `-PskipSample=true` es una red de seguridad, no la única defensa: `settings.gradle.kts`
+# también excluye `:sample` solo cuando detecta una publicación o una CI. Va explícito igual
+# porque acá la omisión es lo que rompe el release: sin él, la classpath del script de `:sample`
+# se resuelve en la fase de configuración —antes de que corra `publishToMavenLocal`— con
+# `mavenLocal()` todavía vacío, y el build muere con "plugin was not found".
+#
 # Los tests no se corren acá a propósito: JitPack tiene timeout de build y la suite de
 # TestKit levanta un proyecto Android real con AGP y R8.
-install: ./gradlew --no-daemon publishToMavenLocal
+install: ./gradlew --no-daemon -PskipSample=true publishToMavenLocal
