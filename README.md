@@ -38,7 +38,7 @@ Y el plugin al `build.gradle.kts` del módulo (la versión es el último tag del
 ```kotlin
 plugins {
     id("com.android.application")
-    id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.1"
+id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.1"
 }
 ```
 
@@ -204,7 +204,7 @@ Dos trampas de ese camino, ya resueltas acá y documentadas en `sample/README.md
   mismo build, así que `:sample` lo toma de `mavenLocal()` (que va primero en `pluginManagement`
   para ganarle al tag de JitPack), y hay que publicar antes de cada prueba.
 - El pipeline de release corre los tests con `-PskipSample=true`, porque en una máquina
-  limpia no hay nada publicado todavía y el sample no aporta a los tests del plugin. Lo mismo
+limpia no hay nada publicado todavía y el sample no aporta a los tests del plugin. Lo mismo
   hace `settings.gradle.kts` solo: descarta `:sample` si la invocación pide publicar (`publish*`,
   que es el caso de JitPack) o si detecta `CI=true`. O sea que ningún `publish*` puede
   terminar configurando el sample, ni aunque alguien se olvide del flag — igual `jitpack.yml`
