@@ -172,8 +172,11 @@ genera ambos artefactos y los flags individuales no pueden apagarlo.
 | `native-debug-symbols-*.zip` | App bundle explorer → `<versionCode>(<versionName>)` → Descargas → Símbolos de depuración nativos |
 
 El plugin no sube nada: los tres archivos se cargan a mano. Dentro del `.zip` las entradas van como
-`lib/<abi>/<archivo>.so`, una por cada ABI que se empaqueta en esa variant — que es el layout que
-Play Console espera.
+`<abi>/<archivo>.so` (por ejemplo `arm64-v8a/libfoo.so`), una por cada ABI que se empaqueta en esa
+variant. Las carpetas de ABI van en la raíz del zip: del `lib/` de AGP se copia el contenido, no la
+carpeta. Play Console rechaza el archivo con
+*"The native debug symbols contain an invalid directory lib. Only Android ABIs are supported."*
+si el zip trae `lib/` arriba.
 
 ## FAQ
 
@@ -194,18 +197,35 @@ Solo a nivel `info`. Significa que la app no empaqueta código nativo: no hay na
 subir.
 
 **El `.zip` de símbolos subió, pero Play no lo acepta.**
-Casi siempre es que las `.so` salieron strippeadas: el plugin zipea las que le llegan de AGP, así
-que si no tienen tabla de símbolos el archivo sirve para poco. Para preservarlas:
+Si el error es *"The native debug symbols contain an invalid directory lib"*, el zip tiene una
+carpeta `lib/` arriba: Play solo acepta carpetas de ABI en la raíz. El plugin ya arma el zip con
+el layout correcto (`<abi>/<archivo>.so`).
+Si el error es que las `.so` no traen símbolos, es otro tema: el plugin zipea las `.so` mergeadas
+que le llegan de AGP, así que si no tienen tabla de símbolos el archivo sirve para poco. Para que
+las conserves:
 
 ```kotlin
 android {
+    ndk {
+        // "SYMBOL_TABLE" mantiene la tabla de símbolos en las .so (es el default de AGP en
+        // builds no debuggeables). "FULL" además empaqueta la info de debug completa.
+        // Ojo: solo aplica a las .so que compila tu propio build de CMake/NDK.
+        debugSymbolLevel = "SYMBOL_TABLE"
+    }
+
     packaging {
         jniLibs {
+            // Evita que AGP les saque los símbolos al empaquetarlas en el .aab.
             keepDebugSymbols += "**/*.so"
         }
     }
 }
 ```
+
+Si las `.so` vienen precompiladas de un AAR (o de una carpeta `jniLibs/`), ningún ajuste del
+módulo las devuelve a la vida: los símbolos hay que conseguirlos de quien construyó esa
+librería. Y con AGP 8.1+ el `.aab` ya incluye la metadata de debug nativa, que Play Console
+puede tomar por su cuenta.
 
 **¿Funciona con product flavors?**
 La tarea `<variant>BundleArtifacts` se registra para cada variant, sí, pero el enganche automático

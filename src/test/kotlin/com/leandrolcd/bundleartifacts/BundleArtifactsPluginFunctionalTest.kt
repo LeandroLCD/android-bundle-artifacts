@@ -68,7 +68,7 @@ class BundleArtifactsPluginFunctionalTest {
         assertTrue(zip.isFile, "no se generó el zip de símbolos")
 
         val entries = ZipFile(zip).use { file -> file.entries().toList().map { it.name } }
-        assertEquals(listOf("lib/x86_64/libfixture.so"), entries)
+        assertEquals(listOf("x86_64/libfixture.so"), entries)
     }
 
     @Test
