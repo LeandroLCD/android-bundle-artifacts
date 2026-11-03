@@ -3,9 +3,12 @@
 [![Release](https://img.shields.io/github/v/tag/LeandroLCD/android-bundle-artifacts?label=v)](https://github.com/LeandroLCD/android-bundle-artifacts/releases/latest)
 [![JitPack](https://jitpack.io/com/github/LeandroLCD/android-bundle-artifacts/badge.svg)](https://jitpack.io/#LeandroLCD/android-bundle-artifacts)
 
-Gradle plugin para Android App Bundles. Copia `mapping.txt` y
+Gradle plugin para Android App Bundles. Deja el `mapping.txt` y el
 `native-debug-symbols-<variant>.zip` **junto al `.aab`** que acabás de generar, e imprime un
 bloque con enlaces clicables en la salida de Gradle.
+
+El `mapping.txt` es una copia del que genera AGP. El `.zip` de símbolos lo arma el plugin: junta
+las `.so` que AGP mergeó para esa variant y las zipea con la estructura que espera Play Console.
 
 Sin configuración. Un renglón en el `plugins {}` y listo.
 
@@ -33,12 +36,12 @@ pluginManagement {
 }
 ```
 
-Y el plugin al `build.gradle.kts` del módulo (la versión es el último tag del repo):
+Y el plugin al `build.gradle.kts` del módulo (la versión es el último tag del repo, con la `v`):
 
 ```kotlin
 plugins {
     id("com.android.application")
-id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.1"
+    id("com.github.LeandroLCD.android-bundle-artifacts") version "v0.1.2"
 }
 ```
 
@@ -46,6 +49,26 @@ Listo. No hay nada más que tocar: ni `android { }`, ni `buildTypes { }`.
 
 > **Desarrollo local:** en vez de la versión publicada podés usar
 > `pluginManagement { includeBuild("../android-bundle-artifacts") }`.
+
+## Cómo se usa
+
+No hay tarea nueva que aprender: el plugin engancha una tarea por variant **al final** de la de AGP,
+así que se bundlea como siempre.
+
+```bash
+./gradlew bundleRelease    # o ./gradlew bundle, para todas las variants
+```
+
+Al terminar, en `app/build/outputs/bundle/<buildType>/` vas a tener, junto al `.aab`:
+
+| Archivo | De dónde sale |
+|---|---|
+| `mapping.txt` | copia del mapping que genera AGP. Solo si esa build ofusca. |
+| `native-debug-symbols-<variant>.zip` | lo genera el plugin con las `.so` mergeadas de la variant. Solo si la app tiene código nativo. |
+
+La tarea en sí se llama `<variant>BundleArtifacts` (grupo `publishing`) y no hace falta invocarla:
+queda enganchada con `finalizedBy` a `bundle<BuildType>`. Si la corrés a mano sin el `.aab` ya
+generado, avisa `No se encontró el AAB de <variant>` y no hace nada.
 
 ## Qué hace por defecto
 
@@ -72,7 +95,13 @@ variantes excluidas.
 
 ## Configuración opcional
 
-Todo se ajusta con gradle properties — no hace falta escribir Kotlin.
+Todo se ajusta con gradle properties — no hace falta escribir Kotlin. Se pueden declarar en el
+`gradle.properties` del módulo, en `~/.gradle/gradle.properties` (aplican a todos los proyectos) o
+pasarlos por línea de comandos en el momento del build:
+
+```bash
+./gradlew bundleRelease -PbundleArtifacts.mapping=always -PbundleArtifacts.clean=false
+```
 
 ```properties
 # app/gradle.properties o ~/.gradle/gradle.properties
@@ -142,11 +171,18 @@ genera ambos artefactos y los flags individuales no pueden apagarlo.
 | `mapping.txt` | App bundle explorer → `<versionCode>(<versionName>)` → Descargas → Archivo de asignación |
 | `native-debug-symbols-*.zip` | App bundle explorer → `<versionCode>(<versionName>)` → Descargas → Símbolos de depuración nativos |
 
+El plugin no sube nada: los tres archivos se cargan a mano. Dentro del `.zip` las entradas van como
+`<abi>/<archivo>.so` (por ejemplo `arm64-v8a/libfoo.so`), una por cada ABI que se empaqueta en esa
+variant. Las carpetas de ABI van en la raíz del zip: del `lib/` de AGP se copia el contenido, no la
+carpeta. Play Console rechaza el archivo con
+*"The native debug symbols contain an invalid directory lib. Only Android ABIs are supported."*
+si el zip trae `lib/` arriba.
+
 ## FAQ
 
 **¿Por qué no hay `mapping.txt` en mi build?**
 Porque esa build type no ofusca (ni `isMinifyEnabled = true` ni `optimization { enable = true }`). AGP no genera mapping sin
-ofuscación, y Play Console no lo pide. Forzal con `-PbundleArtifacts.mapping=always` no
+ofuscación, y Play Console no lo pide. Forzalo con `-PbundleArtifacts.mapping=always` no
 ayuda: el archivo no existe.
 
 **Apareció el aviso "mapping.txt was not generated".**
@@ -159,6 +195,47 @@ explícita: alcanzan también a las variantes excluidas y a las debuggables.
 **Apareció "no native libraries (.so)".**
 Solo a nivel `info`. Significa que la app no empaqueta código nativo: no hay nada que
 subir.
+
+**El `.zip` de símbolos subió, pero Play no lo acepta.**
+Si el error es *"The native debug symbols contain an invalid directory lib"*, el zip tiene una
+carpeta `lib/` arriba: Play solo acepta carpetas de ABI en la raíz. El plugin ya arma el zip con
+el layout correcto (`<abi>/<archivo>.so`).
+Si el error es que las `.so` no traen símbolos, es otro tema: el plugin zipea las `.so` mergeadas
+que le llegan de AGP, así que si no tienen tabla de símbolos el archivo sirve para poco. Para que
+las conserves:
+
+```kotlin
+android {
+    ndk {
+        // "SYMBOL_TABLE" mantiene la tabla de símbolos en las .so (es el default de AGP en
+        // builds no debuggeables). "FULL" además empaqueta la info de debug completa.
+        // Ojo: solo aplica a las .so que compila tu propio build de CMake/NDK.
+        debugSymbolLevel = "SYMBOL_TABLE"
+    }
+
+    packaging {
+        jniLibs {
+            // Evita que AGP les saque los símbolos al empaquetarlas en el .aab.
+            keepDebugSymbols += "**/*.so"
+        }
+    }
+}
+```
+
+Si las `.so` vienen precompiladas de un AAR (o de una carpeta `jniLibs/`), ningún ajuste del
+módulo las devuelve a la vida: los símbolos hay que conseguirlos de quien construyó esa
+librería. Y con AGP 8.1+ el `.aab` ya incluye la metadata de debug nativa, que Play Console
+puede tomar por su cuenta.
+
+**¿Funciona con product flavors?**
+La tarea `<variant>BundleArtifacts` se registra para cada variant, sí, pero el enganche automático
+con la tarea `bundle<BuildType>` se busca por nombre de build type. En un proyecto con flavors ese
+nombre no existe (la tarea es `bundle<Variant>`, p. ej. `bundleFreeRelease`), así que el plugin no
+se dispara solo. Correla a mano después del bundle:
+
+```bash
+./gradlew bundleFreeRelease && ./gradlew freeReleaseBundleArtifacts
+```
 
 **¿El `mapping.txt` que veo en la carpeta era de este build?**
 Con `bundleArtifacts.clean=true` (default), sí: el plugin borra los dos artefactos antes de
@@ -186,8 +263,9 @@ consola.
 ./gradlew functionalTest # tests de integración con Gradle TestKit (necesita Android SDK)
 ```
 
-En `sample/` hay un módulo Android (`com.android.application` con `debug`, `release` y
-`qaDevice`) que aplica el plugin y comprueba, con builds reales, cada cosa que dice este README:
+En `sample/` hay un módulo Android (`com.android.application` con las variants `debug`, `release`,
+`qaDevice` y `qaRelease`) que aplica el plugin y comprueba, con builds reales, cada cosa que dice
+este README:
 
 ```bash
 ./gradlew -PskipSample=true sampleBundle    # sincroniza el plugin y compila el bundle

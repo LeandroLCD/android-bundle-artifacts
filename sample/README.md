@@ -10,6 +10,7 @@ Variantes que define, a propósito:
 | `debug` | no | sí | debería quedar fuera por default (`excludeVariants=debug`) |
 | `release` | sí | no | el camino principal: mapping + símbolos |
 | `qaDevice` | sí | sí | build type propio debuggable: el README dice que **se incluye** |
+| `qaRelease` | sí | no | distribución sin el master switch del DSL: la que mide el efecto de las gradle properties |
 
 Además tiene un `.so` sintético en `src/main/jniLibs/` para que las variantes tengan código
 nativo, y un `MainActivity` para que R8 tenga algo que ofuscar.

@@ -131,21 +131,16 @@ abstract class BundleArtifactsTask : DefaultTask() {
     private fun zipNativeLibs(variant: String, outputDir: File): File? {
         val merged = mergedNativeLibs.orNull?.asFile ?: return null
         // AGP expone <...>/merge<Variant>NativeLibs/out; las .so viven en out/lib/<abi>/.
-        val libRoot = File(merged, "lib").takeIf { it.isDirectory } ?: merged
-        if (!libRoot.isDirectory) return null
-
-        val soFiles = libRoot.walkTopDown()
-            .filter { it.isFile && it.name.endsWith(".so") }
-            .sortedBy { it.invariantSeparatorsPath }
-            .toList()
-        if (soFiles.isEmpty()) return null
+        // Al zip entra el contenido de ese `lib/`, no la carpeta: Play Console rechaza
+        // cualquier carpeta de primer nivel que no sea una ABI.
+        val entries = NativeSymbolsLayout.entries(merged)
+        if (entries.isEmpty()) return null
 
         val target = File(outputDir, "native-debug-symbols-$variant.zip")
         ZipOutputStream(FileOutputStream(target)).use { zos ->
-            soFiles.forEach { soFile ->
-                val entryName = "lib/" + soFile.relativeTo(libRoot).invariantSeparatorsPath
-                zos.putNextEntry(ZipEntry(entryName))
-                soFile.inputStream().use { it.copyTo(zos) }
+            entries.forEach { entry ->
+                zos.putNextEntry(ZipEntry(entry.name))
+                entry.file.inputStream().use { it.copyTo(zos) }
                 zos.closeEntry()
             }
         }
